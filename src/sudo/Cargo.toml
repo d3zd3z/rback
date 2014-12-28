@@ -1,0 +1,8 @@
+[package]
+name = "sudo"
+version = "0.0.1"
+authors = ["David Brown <davidb@davidb.org>"]
+
+[lib]
+name = "sudo"
+path = "lib.rs"
