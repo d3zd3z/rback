@@ -11,6 +11,11 @@ use std::time::Duration;
 
 // Since the command isn't very accessible...  Use this to create a new command for building.
 
+// The sudoer trait allows testing without actually running either sudo or the desired program.
+pub trait Sudoer {
+    fn cmd<T: ToCStr>(&self, program: T) -> Command;
+}
+
 pub enum Sudo {
     // When there is no sudo needed (already root).
     NoSudo,
@@ -57,10 +62,12 @@ impl Sudo {
             }
         }
     }
+}
 
+impl Sudoer for Sudo {
     /// Construct a new command, like Command::new(), but, if sudo is needed, set the new command
     /// up to invoke with sudo.
-    pub fn cmd<T: ToCStr>(&self, program: T) -> Command {
+    fn cmd<T: ToCStr>(&self, program: T) -> Command {
         match self {
             &Sudo::NoSudo => Command::new(program),
             &Sudo::Sudo { .. } => {
@@ -105,6 +112,23 @@ fn sudo_update() {
         Ok(process::ExitStatus(0)) => (),
         Ok(status) => panic!("Error running sudo -v: {}", status),
         Err(e) => panic!("Failed to execute sudo -v: {}", e),
+    }
+}
+
+// A Sudoer that runs an alternate command instead of sudo.
+pub struct FakeSudo {
+    cmd: String,
+}
+
+impl FakeSudo {
+    pub fn new(cmd: &str) -> FakeSudo {
+        FakeSudo { cmd: cmd.to_string() }
+    }
+}
+
+impl Sudoer for FakeSudo {
+    fn cmd<T: ToCStr>(&self, _program: T) -> Command {
+        Command::new(self.cmd.as_slice())
     }
 }
 
