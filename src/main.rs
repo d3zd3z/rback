@@ -4,9 +4,10 @@ extern crate sudo;
 
 use rback::hostname;
 use rback::config;
+use std::os;
 
 fn main() {
-    let host = hostname::gethostname().unwrap();
+    let host = hostname::get().unwrap();
 
     let cfg = config::Host::get_host(&Path::new("../config.toml"), host.as_slice()).unwrap();
     println!("cfg: {}", cfg);
