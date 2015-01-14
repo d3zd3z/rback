@@ -1,28 +1,32 @@
 // Enhance commands to run inside sudo
 
+#![allow(unstable)]
+
 extern crate libc;
 
 use std::io::Command;
 use std::io::process;
 use std::io::process::StdioContainer;
-use std::thread::{JoinGuard, Thread};
 use std::io::timer::Timer;
+use std::path::{BytesContainer};
+use std::sync::mpsc;
+use std::thread::Thread;
 use std::time::Duration;
 
 // Since the command isn't very accessible...  Use this to create a new command for building.
 
 // The sudoer trait allows testing without actually running either sudo or the desired program.
 pub trait Sudoer {
-    fn cmd<T: ToCStr>(&self, program: T) -> Command;
+    fn cmd<T: BytesContainer>(&self, program: T) -> Command;
 }
 
 pub enum Sudo {
     // When there is no sudo needed (already root).
     NoSudo,
     Sudo {
-        keeper: JoinGuard<()>,
+        keeper: Thread,
         ticker: Timer,
-        stop: std::comm::Sender<()>
+        stop: mpsc::Sender<()>
     },
 }
 
@@ -43,13 +47,14 @@ impl Sudo {
 
             let mut ticker = Timer::new().unwrap();
             let msg = ticker.periodic(delay);
-            let (tx, rx) = std::comm::channel();
+            let (tx, rx) = mpsc::channel();
             let child = Thread::spawn(move || {
 
                 loop {
                     select! (
-                        () = msg.recv() => sudo_update(),
-                        () = rx.recv() => break
+                        // TODO: These receivers don't check for errors.
+                        _ = msg.recv() => sudo_update(),
+                        _ = rx.recv() => break
                     )
                 }
                 // println!("Child leaving");
@@ -67,7 +72,7 @@ impl Sudo {
 impl Sudoer for Sudo {
     /// Construct a new command, like Command::new(), but, if sudo is needed, set the new command
     /// up to invoke with sudo.
-    fn cmd<T: ToCStr>(&self, program: T) -> Command {
+    fn cmd<T: BytesContainer>(&self, program: T) -> Command {
         match self {
             &Sudo::NoSudo => Command::new(program),
             &Sudo::Sudo { .. } => {
@@ -82,10 +87,10 @@ impl Sudoer for Sudo {
 // Need Drop to be able to tell the child to terminate.
 impl Drop for Sudo {
     fn drop(&mut self) {
-        match self {
-            &Sudo::NoSudo => (),
-            &Sudo::Sudo { ref stop, ..} => {
-                stop.send(());
+        match *self {
+            Sudo::NoSudo => (),
+            Sudo::Sudo { ref stop, ..} => {
+                stop.send(()).unwrap();
             },
         }
     }
@@ -127,7 +132,7 @@ impl FakeSudo {
 }
 
 impl Sudoer for FakeSudo {
-    fn cmd<T: ToCStr>(&self, _program: T) -> Command {
+    fn cmd<T: BytesContainer>(&self, _program: T) -> Command {
         Command::new(self.cmd.as_slice())
     }
 }
@@ -138,6 +143,8 @@ mod test {
     use std::io::process::{ExitStatus, StdioContainer};
     use std::time::Duration;
     use std::io::timer::sleep;
+    // use std::path::BytesContainer;
+    use super::Sudoer;
 
     use super::is_root;
 
