@@ -1,13 +1,14 @@
 // The rback library.
 
-#![feature(phase)]
+#![allow(unstable)]
+#![feature(int_uint)]
 
 extern crate "rustc-serialize" as rustc_serialize;
 extern crate toml;
 extern crate libc;
 extern crate sudo;
 
-#[phase(plugin,link)]
+#[macro_use]
 extern crate log;
 
 pub mod hostname;

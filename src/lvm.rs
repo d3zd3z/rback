@@ -8,7 +8,7 @@ use std::iter;
 
 use sudo::Sudoer;
 
-#[deriving(Show)]
+#[derive(Show)]
 pub enum Error {
     Io(io::IoError),
     Command(process::ProcessExit),
@@ -27,7 +27,7 @@ impl error::FromError<io::IoError> for Error {
     }
 }
 
-#[deriving(Show)]
+#[derive(Show)]
 pub struct LvmInfo {
     pub entries: Vec<LvmEntry>,
 }
@@ -72,7 +72,7 @@ impl LvmInfo {
     }
 }
 
-#[deriving(Show, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Show, Eq, Ord, PartialEq, PartialOrd)]
 pub struct LvmEntry {
     pub lv: String,
     pub vg: String,

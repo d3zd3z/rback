@@ -53,7 +53,7 @@ mod test {
                 // string, which is somewhat flaky.
                 Err(IoError { kind: OtherIoError, detail: Some(ref msg), ..})
                     if msg.as_slice() == "file name too long" => (),
-                Err(e) => panic!("At {}, got {} ({}, {}, {})", i, e, e.kind, e.desc, e.detail),
+                Err(e) => panic!("At {}, got {} ({:?}, {}, {:?})", i, e, e.kind, e.desc, e.detail),
                 Ok(_) => panic!("Failed and got unterminated buffer"),
             }
         }

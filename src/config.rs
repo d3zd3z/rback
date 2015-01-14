@@ -11,10 +11,10 @@ use rustc_serialize::Decodable;
 
 // The top level of the config file are the host entries.  The key isn't
 // really important, and really serves just to group entries together.
-#[deriving(Show)]
+#[derive(Show)]
 pub struct ConfigFile(Vec<Host>);
 
-#[deriving(RustcDecodable, Show)]
+#[derive(RustcDecodable, Show)]
 pub struct Host {
     pub host: String,
     pub snapdir: String,
@@ -22,7 +22,7 @@ pub struct Host {
     mirrors: Vec<BTreeMap<String, String>>,
 }
 
-#[deriving(RustcDecodable, Show)]
+#[derive(RustcDecodable, Show)]
 pub struct FsInfo {
     volgroup: String,
     lvname: String,
@@ -30,7 +30,7 @@ pub struct FsInfo {
 }
 
 // Errors we can get.
-#[deriving(Show)]
+#[derive(Show)]
 pub enum Error {
     Io(io::IoError),
     Decode(toml::DecodeError),
@@ -93,7 +93,7 @@ impl Host {
         for v in self.mirrors.iter() {
             match v.get("name") {
                 Some(n) if name == n.as_slice() => {
-                    println!("Found: {}", v);
+                    println!("Found: {:?}", v);
                     panic!("Found")
                 },
                 _ => continue,

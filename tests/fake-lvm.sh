@@ -1,7 +1,7 @@
 #! /bin/sh
 
-Used by the sudo faker to avoid needing actual LVM data, or to really
-run sudo.  It ignores its args entirely.
+# Used by the sudo faker to avoid needing actual LVM data, or to
+# really run sudo.  It ignores its args entirely.
 
 cat <<EOF
   LV|VG|Attr|LSize|Pool|Origin|Data%|Meta%|Move|Log|Cpy%Sync|Convert
