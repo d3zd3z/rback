@@ -1,19 +1,21 @@
 [package]
 
 name = "rback"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["davidb"]
 
 [lib]
 name = "rback"
 
 [dependencies]
-toml = "*"
-rustc-serialize = "*"
-log = "0.1"
+libc = "0.2"
+toml = "0.1.26"
+error-type = "0.1.2"
+rustc-serialize = "0.3.16"
+# log = "0.1"
 
-[dependencies.sudo]
-path = "src/sudo"
+# [dependencies.sudo]
+# path = "src/sudo"
 
 [[bin]]
 name = "rback"

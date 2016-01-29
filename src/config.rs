@@ -1,104 +1,96 @@
 //! Code for handling the config file.
 
-use std::io;
-use std::error;
-use std::collections::BTreeMap;
-
-use toml;
-use toml::Decoder;
-
+use hostname;
 use rustc_serialize::Decodable;
+use std::borrow::Cow;
+use std::fs::File;
+use std::io::{self, Read};
+use std::path::Path;
+use std::result;
+use toml;
 
-// The top level of the config file are the host entries.  The key isn't
-// really important, and really serves just to group entries together.
-#[derive(Show)]
-pub struct ConfigFile(Vec<Host>);
+pub type Result<T> = result::Result<T, Error>;
 
-#[derive(RustcDecodable, Show)]
+// Error type for parsing.
+error_type! {
+    #[derive(Debug)]
+    pub enum Error {
+        Io(io::Error) {
+            cause;
+        },
+        TomlError(TomlError) {
+            disp(e, fmt) write!(fmt, "{:?}", e);
+            desc(_e) "Toml Parse Error";
+        },
+        Toml(toml::DecodeError) {
+            cause;
+        },
+        Message(Cow<'static, str>) {
+            desc(e) &**e;
+            from(s: &'static str) s.into();
+            from(s: String) s.into();
+        },
+        UnknownHost(UnknownHost) {
+            disp(e, fmt) write!(fmt, "Unknown host: {:?}", e.0);
+            desc(_e) "Unknown host";
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct TomlError;
+
+#[derive(Debug)]
+pub struct UnknownHost(String);
+
+// The top level of the config file are the host entries.  The key isn't really
+// important, and just serves to group the entries together.
+
+#[derive(Debug, RustcDecodable)]
 pub struct Host {
     pub host: String,
-    pub snapdir: String,
-    pub filesystems: Vec<FsInfo>,
-    mirrors: Vec<BTreeMap<String, String>>,
+    pub base: String,
+    pub snap_prefix: String,
 }
 
-#[derive(RustcDecodable, Show)]
-pub struct FsInfo {
-    volgroup: String,
-    lvname: String,
-    mount: String,
-}
-
-// Errors we can get.
-#[derive(Show)]
-pub enum Error {
-    Io(io::IoError),
-    Decode(toml::DecodeError),
-    NoHost,
-    Parse,
-}
-
-impl error::FromError<io::IoError> for Error {
-    fn from_error(err: io::IoError) -> Error {
-        Error::Io(err)
-    }
-}
-
-impl error::FromError<toml::DecodeError> for Error {
-    fn from_error(err: toml::DecodeError) -> Error {
-        Error::Decode(err)
-    }
-}
-
-// A Mirror has some simple operations on it.
-pub trait Mirror {
-}
+#[derive(Debug)]
+pub struct ConfigFile(Vec<Host>);
 
 impl Host {
-    /// Retrieve the configuration information for the current host, if present.
-    pub fn get_host(name: &Path, host: &str) -> Result<Host, Error> {
-        let ConfigFile(conf) = try!(Host::load(name));
+    /// Retrieve the config file from the toml file at the given path.
+    pub fn load<P: AsRef<Path>>(name: P) -> Result<ConfigFile> {
+        let mut text = String::new();
+        let mut f = try!(File::open(name));
+        try!(f.read_to_string(&mut text));
 
-        for h in conf.into_iter() {
-            if h.host.as_slice() == host {
-                return Ok(h)
-            }
-        }
-
-        Err(Error::NoHost)
-    }
-
-    /// the config file from the toml file at the given path.
-    pub fn load(name: &Path) -> Result<ConfigFile, Error> {
-        let text = {
-            let mut f = try!(io::File::open(name));
-            try!(f.read_to_string())
+        let tml = match toml::Parser::new(&text).parse() {
+            Some(stuff) => stuff,
+            None => return Err(Error::TomlError(TomlError)),
         };
 
-        let mut parser = toml::Parser::new(text.as_slice());
-        let toml = try!(parser.parse().ok_or(Error::Parse));
+        let mut result = vec![];
 
-        let mut result = vec!();
-
-        for (_k, v) in toml.into_iter() {
-            let host = try!(Decodable::decode(&mut Decoder::new(v)));
+        for v in tml.values() {
+            // TODO: Can we do with a move instead of a clone.
+            // println!("{:?}", v);
+            let mut dec = toml::Decoder::new(v.clone());
+            let host: Host = try!(Decodable::decode(&mut dec));
+            // println!("{:?}", host);
             result.push(host);
         }
 
         Ok(ConfigFile(result))
     }
+}
 
-    /// Find an appropriate mirror type.
-    pub fn get_mirror(&self, name: &str) -> Option<Box<Mirror>> {
-        for v in self.mirrors.iter() {
-            match v.get("name") {
-                Some(n) if name == n.as_slice() => {
-                    println!("Found: {:?}", v);
-                    panic!("Found")
-                },
-                _ => continue,
+impl ConfigFile {
+    pub fn lookup(&self) -> Result<&Host> {
+        let host = try!(hostname::get());
+        for ent in &self.0 {
+            if ent.host == host {
+                return Ok(&ent);
             }
         }
-        None
+        return Err(Error::UnknownHost(UnknownHost(host)));
     }
 }

@@ -1,8 +1,14 @@
 // The rback library.
 
-#![allow(unstable)]
-#![feature(int_uint)]
+extern crate libc;
+#[macro_use] extern crate error_type;
+extern crate toml;
+extern crate rustc_serialize;
 
+pub mod hostname;
+pub mod config;
+
+/*
 extern crate "rustc-serialize" as rustc_serialize;
 extern crate toml;
 extern crate libc;
@@ -15,3 +21,4 @@ pub mod hostname;
 pub mod config;
 pub mod lvm;
 
+*/

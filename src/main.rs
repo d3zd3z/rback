@@ -1,7 +1,15 @@
-#![allow(unstable)]
+//! Driver for rback.
 
 extern crate rback;
 
+use std::path::Path;
+
+fn main() {
+    let cfg = rback::config::Host::load(&Path::new("backup.toml")).unwrap();
+    println!("cfg: {:?}", cfg.lookup().unwrap());
+}
+
+/*
 extern crate sudo;
 
 use rback::hostname;
@@ -38,3 +46,4 @@ fn main() {
 fn usage() {
     println!("Usage: rback {{snap | push dest}}");
 }
+*/
