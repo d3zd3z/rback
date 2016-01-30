@@ -1,8 +1,13 @@
 [package]
 name = "sudo"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["David Brown <davidb@davidb.org>"]
 
 [lib]
 name = "sudo"
 path = "lib.rs"
+
+[dependencies]
+lazy_static = "0.1.15"
+libc = "0.2.6"
+schedule_recv = "0.0.1"
