@@ -5,12 +5,15 @@ extern crate chrono;
 extern crate libc;
 extern crate regex;
 extern crate rustc_serialize;
-extern crate sudo;
 extern crate toml;
 
 pub mod config;
 pub mod hostname;
 pub mod zfs;
 
-pub use sudo::Sudo;
 pub use zfs::ZFS;
+
+pub struct RBack {
+    pub host: config::Host,
+    pub dry_run: bool,
+}

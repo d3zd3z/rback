@@ -1,18 +1,68 @@
 //! Driver for rback.
 
+#[macro_use] extern crate clap;
 extern crate rback;
 
+use clap::{App, Arg, SubCommand};
+use std::error;
 use std::path::Path;
+use std::result;
 
-use rback::{Sudo, ZFS};
+use rback::ZFS;
+use rback::config::Host;
+
+use rback::RBack;
+
+pub type Error = Box<error::Error + Send + Sync>;
+pub type Result<T> = result::Result<T, Error>;
 
 fn main() {
-    let cfg = rback::config::Host::load(&Path::new("backup.toml")).unwrap();
+    let matches = App::new("rback zfs backup management")
+        .version(crate_version!())
+        .author("David Brown <davidb@davidb.org>")
+        .arg(Arg::with_name("config")
+             .short("c")
+             .long("config")
+             .help("set a custom config file")
+             .takes_value(true))
+        .arg(Arg::with_name("dry-run")
+             .short("n")
+             .long("dry-run")
+             .help("Don't make modifications to the filesystem"))
+        .subcommand(SubCommand::with_name("snap")
+                    .about("Take a snapshot"))
+        .get_matches();
+
+    let config = matches.value_of("config").unwrap_or("backup.toml");
+
+    let cfg = rback::config::Host::load(&Path::new(config)).unwrap();
     let host = cfg.lookup().unwrap();
+
+    let back = RBack {
+        host: host.clone(),
+        dry_run: matches.is_present("dry-run"),
+    };
+
+    match matches.subcommand_name() {
+        None => {
+            println!("{}", matches.usage());
+            return;
+        },
+        Some("snap") => do_snap(&back).unwrap(),
+        Some(n) => panic!("Unexpected subcommand name: {}", n),
+    }
+
     println!("cfg: {:?}", host);
+    /*
     let sudo = Sudo::new();
     let zfs = ZFS::new(&sudo, &host.base, &host.snap_prefix);
     zfs.take_snapshot().unwrap();
+    */
+}
+
+fn do_snap(back: &RBack) -> Result<()> {
+    let zfs = ZFS::new(back);
+    zfs.take_snapshot()
 }
 
 /*

@@ -46,7 +46,7 @@ pub struct UnknownHost(String);
 // The top level of the config file are the host entries.  The key isn't really
 // important, and just serves to group the entries together.
 
-#[derive(Debug, RustcDecodable)]
+#[derive(Clone, Debug, RustcDecodable)]
 pub struct Host {
     pub host: String,
     pub base: String,

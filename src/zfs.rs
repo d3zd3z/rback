@@ -5,34 +5,32 @@ use regex::{self, Regex};
 use std::error;
 use std::io::prelude::*;
 use std::io::{BufReader};
+use std::process::Command;
 use std::result;
-use sudo::Sudo;
 
 // For dev, boxed errors.
 pub type Error = Box<error::Error + Send + Sync>;
 pub type Result<T> = result::Result<T, Error>;
 
+use RBack;
+
 pub struct ZFS<'a> {
-    sudo: &'a Sudo,
+    back: &'a RBack,
     snap_re: Regex,
-    base: String,
-    prefix: String,
 }
 
 impl<'a> ZFS<'a> {
-    pub fn new<'b>(sudo: &'b Sudo, base: &str, snap_prefix: &str) -> ZFS<'b> {
-        let quoted = regex::quote(snap_prefix);
+    pub fn new<'b>(back: &'b RBack) -> ZFS<'b> {
+        let quoted = regex::quote(&back.host.snap_prefix);
         let pat = format!("^{}(\\d+)[-\\.]([-\\.\\d]+)$", quoted);
         ZFS {
-            sudo: sudo,
+            back: back,
             snap_re: Regex::new(&pat).unwrap(),
-            base: base.to_owned(),
-            prefix: snap_prefix.to_owned(),
         }
     }
 
     pub fn get_snaps(&self, dir: &str) -> Result<Vec<DataSet>> {
-        let mut cmd = self.sudo.cmd("zfs");
+        let mut cmd = Command::new("zfs");
         cmd.args(&["list", "-H", "-t", "all", "-o", "name,mountpoint",
                  "-r", dir]);
         let out = try!(cmd.output());
@@ -84,17 +82,23 @@ impl<'a> ZFS<'a> {
 
     /// Take the next snapshot.
     pub fn take_snapshot(&self) -> Result<()> {
-        let snaps = try!(self.get_snaps(&self.base));
+        let snaps = try!(self.get_snaps(&self.back.host.base));
         let num = self.next_snap(&snaps);
         let today = Local::today();
-        let name = format!("{}@{}{:05}-{:02}-{:02}", self.base, self.prefix, num,
+        let name = format!("{}@{}{:05}-{:02}-{:02}", self.back.host.base,
+                           self.back.host.snap_prefix, num,
                            today.month(), today.day());
 
-        let mut cmd = self.sudo.cmd("zfs");
+        let mut cmd = Command::new("zfs");
         cmd.args(&["snapshot", "-r", &name]);
-        let stat = try!(cmd.status());
-        if !stat.success() {
-            return Err(format!("Unable to run zfs command: {:?}", stat).into());
+        if self.back.dry_run {
+            println!("Would run: {:?}", cmd);
+        } else {
+            println!("Run: {:?}", cmd);
+            let stat = try!(cmd.status());
+            if !stat.success() {
+                return Err(format!("Unable to run zfs command: {:?}", stat).into());
+            }
         }
         Ok(())
     }
