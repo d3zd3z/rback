@@ -4,9 +4,15 @@ extern crate rback;
 
 use std::path::Path;
 
+use rback::{Sudo, ZFS};
+
 fn main() {
     let cfg = rback::config::Host::load(&Path::new("backup.toml")).unwrap();
-    println!("cfg: {:?}", cfg.lookup().unwrap());
+    let host = cfg.lookup().unwrap();
+    println!("cfg: {:?}", host);
+    let sudo = Sudo::new();
+    let zfs = ZFS::new(&sudo, &host.base, &host.snap_prefix);
+    zfs.take_snapshot().unwrap();
 }
 
 /*

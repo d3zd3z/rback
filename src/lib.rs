@@ -1,24 +1,16 @@
 // The rback library.
 
-extern crate libc;
+extern crate chrono;
 #[macro_use] extern crate error_type;
-extern crate toml;
-extern crate rustc_serialize;
-
-pub mod hostname;
-pub mod config;
-
-/*
-extern crate "rustc-serialize" as rustc_serialize;
-extern crate toml;
 extern crate libc;
+extern crate regex;
+extern crate rustc_serialize;
 extern crate sudo;
+extern crate toml;
 
-#[macro_use]
-extern crate log;
-
-pub mod hostname;
 pub mod config;
-pub mod lvm;
+pub mod hostname;
+pub mod zfs;
 
-*/
+pub use sudo::Sudo;
+pub use zfs::ZFS;

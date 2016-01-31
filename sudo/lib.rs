@@ -48,8 +48,8 @@ impl Sudo {
 
     /// Construct a new command, like Command::new(), but, if sudo is needed, set the new command
     /// up to invoke with sudo.
-    pub fn cmd<S: AsRef<OsStr>>(self, program: S) -> Command {
-        match self {
+    pub fn cmd<S: AsRef<OsStr>>(&self, program: S) -> Command {
+        match *self {
             Sudo::NoSudo => Command::new(program),
             Sudo::Sudo { .. } => {
                 let mut cmd = Command::new("sudo");
