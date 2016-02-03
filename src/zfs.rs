@@ -2,7 +2,9 @@
 
 use chrono::{Datelike, Local};
 use regex::{self, Regex};
+use rsure;
 use std::error;
+use std::path::Path;
 use std::io::prelude::*;
 use std::io::{BufReader};
 use std::process::Command;
@@ -99,6 +101,60 @@ impl<'a> ZFS<'a> {
             if !stat.success() {
                 return Err(format!("Unable to run zfs command: {:?}", stat).into());
             }
+        }
+        Ok(())
+    }
+
+    /// Get all of the filesystems we care about, and update 'sure' data for all of them.
+    pub fn run_sure(&self) -> Result<()> {
+        let base = &self.back.host.base[..];
+
+        let snaps = try!(self.get_snaps(base));
+        let snaps: Vec<_> = snaps.iter().filter(|x| x.name != base && !x.name.ends_with("/sure")).collect();
+        // println!("sure: {:#?}", snaps);
+
+        for ds in snaps {
+            println!("Run sure on {:?} at {}", ds.name, ds.mount);
+
+            let mut last = None;
+            let subname = &ds.name[self.back.host.base.len()+1..];
+            // println!("  sub: {:?}", subname);
+            for snap in &ds.snaps {
+                let name = format!("/{}/sure/{}-{}.dat.gz", base, subname, snap);
+                if Path::new(&name).is_file() {
+                    last = Some(name);
+                    continue;
+                }
+
+                // println!("  {:?}", name);
+                let dir = format!("{}/.zfs/snapshot/{}", ds.mount, snap);
+                match last {
+                    None => try!(self.full_sure(&dir, &name)),
+                    Some(ref old_name) => try!(self.incremental_sure(&dir, old_name, &name)),
+                }
+                if self.back.dry_run {
+                } else {
+                }
+
+                last = Some(name);
+
+            }
+        }
+        Ok(())
+    }
+
+    fn full_sure(&self, dir: &str, name: &str) -> Result<()> {
+        println!("  % sure -f {} ({})", name, dir);
+        if !self.back.dry_run {
+            try!(rsure::update(dir, rsure::no_path(), name));
+        }
+        Ok(())
+    }
+
+    fn incremental_sure(&self, dir: &str, old_name: &str, name: &str) -> Result<()> {
+        println!("  % sure --old {} -f {} ({})", old_name, name, dir);
+        if !self.back.dry_run {
+            try!(rsure::update(dir, Some(old_name), name));
         }
         Ok(())
     }

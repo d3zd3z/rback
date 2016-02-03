@@ -31,6 +31,8 @@ fn main() {
              .help("Don't make modifications to the filesystem"))
         .subcommand(SubCommand::with_name("snap")
                     .about("Take a snapshot"))
+        .subcommand(SubCommand::with_name("sure")
+                    .about("Update sure info"))
         .get_matches();
 
     let config = matches.value_of("config").unwrap_or("backup.toml");
@@ -49,10 +51,11 @@ fn main() {
             return;
         },
         Some("snap") => do_snap(&back).unwrap(),
+        Some("sure") => do_sure(&back).unwrap(),
         Some(n) => panic!("Unexpected subcommand name: {}", n),
     }
 
-    println!("cfg: {:?}", host);
+    // println!("cfg: {:?}", host);
     /*
     let sudo = Sudo::new();
     let zfs = ZFS::new(&sudo, &host.base, &host.snap_prefix);
@@ -63,6 +66,11 @@ fn main() {
 fn do_snap(back: &RBack) -> Result<()> {
     let zfs = ZFS::new(back);
     zfs.take_snapshot()
+}
+
+fn do_sure(back: &RBack) -> Result<()> {
+    let zfs = ZFS::new(back);
+    zfs.run_sure()
 }
 
 /*

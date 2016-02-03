@@ -8,7 +8,7 @@ authors = ["davidb"]
 name = "rback"
 
 [dependencies]
-libc = "0.2"
+libc = "0.2.6"
 toml = "0.1.26"
 error-type = "0.1.2"
 rustc-serialize = "0.3.16"
@@ -16,6 +16,8 @@ regex = "0.1.48"
 chrono = "0.2.18"
 clap = "2.0.1"
 # log = "0.1"
+
+rsure = { git = "https://github.com/d3zd3z/rsure" }
 
 [[bin]]
 name = "rback"

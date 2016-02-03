@@ -4,6 +4,7 @@ extern crate chrono;
 #[macro_use] extern crate error_type;
 extern crate libc;
 extern crate regex;
+extern crate rsure;
 extern crate rustc_serialize;
 extern crate toml;
 
