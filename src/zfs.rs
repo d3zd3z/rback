@@ -3,6 +3,8 @@
 use chrono::{Datelike, Local};
 use regex::{self, Regex};
 use rsure;
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::error;
 use std::path::Path;
 use std::io::prelude::*;
@@ -15,6 +17,9 @@ pub type Error = Box<error::Error + Send + Sync>;
 pub type Result<T> = result::Result<T, Error>;
 
 use RBack;
+
+// For pruning, always keep at least this many of the pruned snapshots.
+const PRUNE_KEEP: usize = 10;
 
 pub struct ZFS<'a> {
     back: &'a RBack,
@@ -177,6 +182,78 @@ impl<'a> ZFS<'a> {
     fn base(&self) -> &str {
         &self.back.host.base[..]
     }
+
+    pub fn prune_snaps(&self) -> Result<()> {
+        let snaps = try!(self.get_snaps(self.base()));
+        for ds in &snaps {
+            println!("name: {}", ds.name);
+            let mut seen = HashMap::new();
+            let mut prunes = Vec::new();
+            for snap in &ds.snaps {
+                match self.snap_re.captures(snap) {
+                    None => (),
+                    Some(caps) => {
+                        let num = caps.at(1).unwrap().parse::<u32>().unwrap();
+                        seen.insert(num, PruneInfo {
+                            num: num,
+                            name: snap.to_owned(),
+                        });
+
+                        // Prune away entries with the same number of bits.
+                        let mypop = Self::count_ones(num);
+                        for i in 1 .. num {
+                            if Self::count_ones(i) != mypop {
+                                continue
+                            }
+                            match seen.entry(i) {
+                                Entry::Occupied(ent) => {
+                                    prunes.push(ent.remove());
+                                },
+                                Entry::Vacant(_) => (),
+                            }
+                        }
+                    },
+                }
+            }
+
+            // Prune the old ones, but make sure to keep some.
+            if prunes.len() > PRUNE_KEEP {
+                for prune in &prunes[..prunes.len() - PRUNE_KEEP] {
+                    let name = format!("{}@{}", ds.name, prune.name);
+                    let mut cmd = Command::new("zfs");
+                    cmd.arg("destroy");
+                    cmd.arg(name);
+                    println!(" % {:?}", cmd);
+                    if !self.back.dry_run {
+                        // TODO: Factor this always run command.
+                        let stat = try!(cmd.status());
+                        if !stat.success() {
+                            return Err(format!("Unable to run zfs command: {:?}", stat).into());
+                        }
+                    }
+                }
+            }
+        }
+
+        return Ok(());
+    }
+
+    // A simple population count from Hacker's delight.
+    fn count_ones(num: u32) -> u32 {
+        let mut num = num;
+        num = (num & 0x55555555) + ((num >>  1) & 0x55555555);
+        num = (num & 0x33333333) + ((num >>  2) & 0x33333333);
+        num = (num & 0x0F0F0F0F) + ((num >>  4) & 0x0F0F0F0F);
+        num = (num & 0x00FF00FF) + ((num >>  8) & 0x00FF00FF);
+        num = (num & 0x0000FFFF) + ((num >> 16) & 0x0000FFFF);
+        num
+    }
+}
+
+#[derive(Debug)]
+struct PruneInfo {
+    num: u32,
+    name: String,
 }
 
 #[derive(Debug)]

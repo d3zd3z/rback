@@ -33,6 +33,8 @@ fn main() {
                     .about("Take a snapshot"))
         .subcommand(SubCommand::with_name("sure")
                     .about("Update sure info"))
+        .subcommand(SubCommand::with_name("prune")
+                    .about("Prune old snapshots"))
         .get_matches();
 
     let config = matches.value_of("config").unwrap_or("backup.toml");
@@ -52,6 +54,7 @@ fn main() {
         },
         Some("snap") => do_snap(&back).unwrap(),
         Some("sure") => do_sure(&back).unwrap(),
+        Some("prune") => do_prune(&back).unwrap(),
         Some(n) => panic!("Unexpected subcommand name: {}", n),
     }
 
@@ -71,6 +74,11 @@ fn do_snap(back: &RBack) -> Result<()> {
 fn do_sure(back: &RBack) -> Result<()> {
     let zfs = ZFS::new(back);
     zfs.run_sure()
+}
+
+fn do_prune(back: &RBack) -> Result<()> {
+    let zfs = ZFS::new(back);
+    zfs.prune_snaps()
 }
 
 /*
