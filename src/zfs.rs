@@ -128,6 +128,11 @@ impl<'a> ZFS<'a> {
 
                 // println!("  {:?}", name);
                 let dir = format!("{}/.zfs/snapshot/{}", ds.mount, snap);
+
+                // The zfs snapshot automounter is a bit peculiar.  To ensure the directory is
+                // actually mounted, run a command in that directory.
+                try!(self.ensure_dir(&dir));
+
                 match last {
                     None => try!(self.full_sure(&dir, &name)),
                     Some(ref old_name) => try!(self.incremental_sure(&dir, old_name, &name)),
@@ -139,6 +144,16 @@ impl<'a> ZFS<'a> {
                 last = Some(name);
 
             }
+        }
+        Ok(())
+    }
+
+    fn ensure_dir(&self, dir: &str) -> Result<()> {
+        let mut cmd = Command::new("pwd");
+        cmd.current_dir(dir);
+        let stat = try!(cmd.status());
+        if !stat.success() {
+            return Err(format!("Unable to run pwd command in snapshot dir {:?}", stat).into());
         }
         Ok(())
     }
