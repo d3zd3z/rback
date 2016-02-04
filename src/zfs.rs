@@ -84,10 +84,10 @@ impl<'a> ZFS<'a> {
 
     /// Take the next snapshot.
     pub fn take_snapshot(&self) -> Result<()> {
-        let snaps = try!(self.get_snaps(&self.back.host.base));
+        let snaps = try!(self.get_snaps(self.base()));
         let num = self.next_snap(&snaps);
         let today = Local::today();
-        let name = format!("{}@{}{:05}-{:02}-{:02}", self.back.host.base,
+        let name = format!("{}@{}{:05}-{:02}-{:02}", self.base(),
                            self.back.host.snap_prefix, num,
                            today.month(), today.day());
 
@@ -107,7 +107,7 @@ impl<'a> ZFS<'a> {
 
     /// Get all of the filesystems we care about, and update 'sure' data for all of them.
     pub fn run_sure(&self) -> Result<()> {
-        let base = &self.back.host.base[..];
+        let base = self.base();
 
         let snaps = try!(self.get_snaps(base));
         let snaps: Vec<_> = snaps.iter().filter(|x| x.name != base && !x.name.ends_with("/sure")).collect();
@@ -117,7 +117,7 @@ impl<'a> ZFS<'a> {
             println!("Run sure on {:?} at {}", ds.name, ds.mount);
 
             let mut last = None;
-            let subname = &ds.name[self.back.host.base.len()+1..];
+            let subname = &ds.name[base.len()+1..];
             // println!("  sub: {:?}", subname);
             for snap in &ds.snaps {
                 let name = format!("/{}/sure/{}-{}.dat.gz", base, subname, snap);
@@ -157,6 +157,10 @@ impl<'a> ZFS<'a> {
             try!(rsure::update(dir, Some(old_name), name));
         }
         Ok(())
+    }
+
+    fn base(&self) -> &str {
+        &self.back.host.base[..]
     }
 }
 
