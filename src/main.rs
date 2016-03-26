@@ -35,6 +35,12 @@ fn main() {
                     .about("Update sure info"))
         .subcommand(SubCommand::with_name("prune")
                     .about("Prune old snapshots"))
+        .subcommand(SubCommand::with_name("clone")
+                    .about("Clone a set of snapshots")
+                    .arg(Arg::with_name("src")
+                         .required(true))
+                    .arg(Arg::with_name("dest")
+                         .required(true)))
         .get_matches();
 
     let config = matches.value_of("config").unwrap_or("backup.toml");
@@ -55,6 +61,12 @@ fn main() {
         Some("snap") => do_snap(&back).unwrap(),
         Some("sure") => do_sure(&back).unwrap(),
         Some("prune") => do_prune(&back).unwrap(),
+        Some("clone") => {
+            let submatches = matches.subcommand_matches("clone").unwrap();
+            let src = submatches.value_of("src").unwrap();
+            let dest = submatches.value_of("dest").unwrap();
+            do_clone(&back, src, dest).unwrap();
+        }
         Some(n) => panic!("Unexpected subcommand name: {}", n),
     }
 
@@ -79,6 +91,12 @@ fn do_sure(back: &RBack) -> Result<()> {
 fn do_prune(back: &RBack) -> Result<()> {
     let zfs = ZFS::new(back);
     zfs.prune_snaps()
+}
+
+fn do_clone(back: &RBack, src: &str, dest: &str) -> Result<()> {
+    let zfs = ZFS::new(back);
+    println!("src: {}, dest: {}", src, dest);
+    zfs.clone_snaps(src, dest)
 }
 
 /*
