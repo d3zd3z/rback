@@ -39,7 +39,7 @@ fn main() {
 
     let config = matches.value_of("config").unwrap_or("backup.toml");
 
-    let cfg = rback::config::Host::load(&Path::new(config)).unwrap();
+    let cfg = Host::load(&Path::new(config)).unwrap();
     let host = cfg.lookup().unwrap();
 
     let back = RBack {
