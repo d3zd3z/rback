@@ -200,9 +200,9 @@ impl<'a> ZFS<'a> {
                         });
 
                         // Prune away entries with the same number of bits.
-                        let mypop = Self::count_ones(num);
+                        let mypop = num.count_ones();
                         for i in 1 .. num {
-                            if Self::count_ones(i) != mypop {
+                            if i.count_ones() != mypop {
                                 continue
                             }
                             match seen.entry(i) {
@@ -236,17 +236,6 @@ impl<'a> ZFS<'a> {
         }
 
         return Ok(());
-    }
-
-    // A simple population count from Hacker's delight.
-    fn count_ones(num: u32) -> u32 {
-        let mut num = num;
-        num = (num & 0x55555555) + ((num >>  1) & 0x55555555);
-        num = (num & 0x33333333) + ((num >>  2) & 0x33333333);
-        num = (num & 0x0F0F0F0F) + ((num >>  4) & 0x0F0F0F0F);
-        num = (num & 0x00FF00FF) + ((num >>  8) & 0x00FF00FF);
-        num = (num & 0x0000FFFF) + ((num >> 16) & 0x0000FFFF);
-        num
     }
 }
 
