@@ -48,7 +48,7 @@ impl<'a> ZFS<'a> {
             return Err(format!("zfs list returned error: {:?}", out.status).into());
         }
         let buf = out.stdout;
-        println!("Len: {} bytes", buf.len());
+        // println!("Len: {} bytes", buf.len());
 
         let mut builder = SnapBuilder::new();
 
@@ -303,7 +303,7 @@ impl<'a> ZFS<'a> {
             // For development, stop after one clone to make sure it worked
             // right.
         }
-        println!("Latest: {:?}", last);
+        // println!("Latest: {:?}", last);
 
         Ok(())
     }
