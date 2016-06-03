@@ -440,12 +440,20 @@ impl SnapBuilder {
 #[cfg(test)]
 mod test {
     use super::*;
-    use sudo::Sudo;
+    use config;
+    use RBack;
 
     #[test]
     fn test_snaps() {
-        let sudo = Sudo::new();
-        let zfs = ZFS::new(&sudo, "arch/arch", "aa2015-");
+        let back = RBack {
+            host: config::Host {
+                host: "test-host".to_owned(),
+                base: "arch/arch".to_owned(),
+                snap_prefix: "aa2015-".to_owned(),
+            },
+            dry_run: false,
+        };
+        let zfs = ZFS::new(&back);
         let snaps = zfs.get_snaps("a64/arch").unwrap();
         println!("next: {}", zfs.next_snap(&snaps));
     }
