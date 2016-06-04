@@ -33,6 +33,8 @@ fn main() {
                     .about("Take a snapshot"))
         .subcommand(SubCommand::with_name("sure")
                     .about("Update sure info"))
+        .subcommand(SubCommand::with_name("bksure")
+                    .about("Update sure info to bksure store"))
         .subcommand(SubCommand::with_name("prune")
                     .about("Prune old snapshots"))
         .subcommand(SubCommand::with_name("clone")
@@ -60,6 +62,7 @@ fn main() {
         },
         Some("snap") => do_snap(&back).unwrap(),
         Some("sure") => do_sure(&back).unwrap(),
+        Some("bksure") => do_bksure(&back).unwrap(),
         Some("prune") => do_prune(&back).unwrap(),
         Some("clone") => {
             let submatches = matches.subcommand_matches("clone").unwrap();
@@ -86,6 +89,11 @@ fn do_snap(back: &RBack) -> Result<()> {
 fn do_sure(back: &RBack) -> Result<()> {
     let zfs = ZFS::new(back);
     zfs.run_sure()
+}
+
+fn do_bksure(back: &RBack) -> Result<()> {
+    let zfs = ZFS::new(back);
+    zfs.run_bksure()
 }
 
 fn do_prune(back: &RBack) -> Result<()> {

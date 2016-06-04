@@ -2,7 +2,8 @@
 
 use chrono::{Datelike, Local};
 use regex::{self, Regex};
-use rsure;
+use rsure::{self, Progress, SureHash, TreeUpdate};
+use rsure::bk::BkDir;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
 use std::error;
@@ -71,6 +72,16 @@ impl<'a> ZFS<'a> {
         Ok(result)
     }
 
+    // Get the list of snaps, but eliminate those related to surefiles.
+    fn get_nonsure_snaps(&self, dir: &str) -> Result<Vec<DataSet>> {
+        Ok(try!(self.get_snaps(dir))
+           .into_iter()
+           .filter(|x| x.name != dir &&
+                   !x.name.ends_with("/sure") &&
+                   !x.name.ends_with("/bksure"))
+           .collect())
+    }
+
     /// For all snapshots, find the highest numbered dataset.
     pub fn next_snap(&self, sets: &[DataSet]) -> u32 {
         let mut next = 0u32;
@@ -117,9 +128,7 @@ impl<'a> ZFS<'a> {
     pub fn run_sure(&self) -> Result<()> {
         let base = self.base();
 
-        let snaps = try!(self.get_snaps(base));
-        let snaps: Vec<_> = snaps.iter().filter(|x| x.name != base && !x.name.ends_with("/sure")).collect();
-        // println!("sure: {:#?}", snaps);
+        let snaps = try!(self.get_nonsure_snaps(base));
 
         for ds in snaps {
             println!("Run sure on {:?} at {}", ds.name, ds.mount);
@@ -156,6 +165,44 @@ impl<'a> ZFS<'a> {
         Ok(())
     }
 
+    /// Update sure for all filesystems we care about, and update the
+    /// 'sure' data within a bksure store.
+    pub fn run_bksure(&self) -> Result<()> {
+        let base = self.base();
+        let snaps = try!(self.get_nonsure_snaps(base));
+        let bkd = try!(BkDir::new(&format!("/{}/bksure", base)));
+        let present = try!(bkd.query());
+        for ds in snaps {
+            let mut last = None;
+            let subname = &ds.name[base.len()+1..];
+            let datname = format!("{}.dat", subname);
+            let exists = present.iter()
+                .filter(|x| x.file == datname)
+                .map(|x| (&x.name[..]))
+                .collect::<HashSet<_>>();
+            // println!("  subname: {:?}", subname);
+            // println!("  exists: {:#?}", exists);
+            println!("Run bksure on {:?} at {}", ds.name, ds.mount);
+            for snap in &ds.snaps {
+                if exists.contains(&snap[..]) {
+                    last = Some(snap.to_owned());
+                    continue;
+                }
+
+                let dir = format!("{}/.zfs/snapshot/{}", ds.mount, snap);
+
+                // The zfs snapshot automounter is a bit peculiar.  To
+                // ensure the directory is actually mounted, run a command
+                // in that directory.
+                try!(self.ensure_dir(&dir));
+
+                try!(self.bksure(&bkd, &dir, &datname, last.as_ref().map(|x| x.as_str()), &snap));
+                last = Some(snap.clone());
+            }
+        }
+        Ok(())
+    }
+
     fn ensure_dir(&self, dir: &str) -> Result<()> {
         let mut cmd = Command::new("pwd");
         cmd.current_dir(dir);
@@ -178,6 +225,31 @@ impl<'a> ZFS<'a> {
         println!("  % sure --old {} -f {} ({})", old_name, name, dir);
         if !self.back.dry_run {
             try!(rsure::update(dir, Some(old_name), name));
+        }
+        Ok(())
+    }
+
+    fn bksure(&self, bkd: &BkDir, dir: &str, file: &str, old: Option<&str>, name: &str) -> Result<()> {
+        println!("  % sure file={:?} old={:?}, name={:?} (dir={:?})", file, old, name, dir);
+        if !self.back.dry_run {
+            // TODO: Generalize this functionality in rsure's API itself.
+            let mut new_tree = try!(rsure::scan_fs(dir));
+
+            // Update the hashes.
+            match old {
+                None => (),
+                Some(src) => {
+                    let old_tree = try!(bkd.load(file, src));
+                    new_tree.update_from(&old_tree);
+                },
+            }
+
+            let estimate = new_tree.hash_estimate();
+            let mut progress = Progress::new(estimate.files, estimate.bytes);
+            new_tree.hash_update(Path::new(dir), &mut progress);
+            progress.flush();
+
+            try!(bkd.save(&new_tree, file, name));
         }
         Ok(())
     }
