@@ -455,24 +455,24 @@ impl<'a, 'b, 'c, 'd> CloneState<'a, 'b, 'c, 'd> {
                 latest = Some(i);
             }
         }
-        let latest = latest.expect("Clone exists but doesn't have any snapshots");
 
-        let mut last = latest;
-        for snum in latest+1 .. src.snaps.len() {
+        let mut last = latest.clone();
+        let first = latest.map(|x| x + 1).unwrap_or(0);
+        for snum in first .. src.snaps.len() {
             let name = &src.snaps[snum];
             if dpresent.contains(name) {
                 // This is already present.  Unsure if this should happen
                 // as long as we're doing the backups.
                 println!("Warning: snapshot is already present: {:?}", name);
             } else {
-                let old_name = &src.snaps[last];
+                let old_name = last.map(|x| &src.snaps[x][..]);
                 println!("  clone {:?} {:?} to {:?} {:?}", src.name, old_name, dest.name, name);
                 let size = try!(self.estimate_size(src, old_name, name));
                 println!("    size: {:?}", size);
                 try!(self.run_clone(src, dest, old_name, name, size));
             }
 
-            last = snum;
+            last = Some(snum);
 
             // For development, stop after one clone to make sure it worked
             // right.
@@ -482,11 +482,17 @@ impl<'a, 'b, 'c, 'd> CloneState<'a, 'b, 'c, 'd> {
         Ok(())
     }
 
-    fn estimate_size(&self, dset: &DataSet, old_name: &str, new_name: &str) -> Result<u64> {
+    fn estimate_size(&self, dset: &DataSet, old_name: Option<&str>, new_name: &str) -> Result<u64> {
         let mut cmd = self.src.command();
-        let old_arg = format!("@{}", old_name);
+        cmd.args(&["send", "-nP", "-Le"]);
+        match old_name {
+            None => (),
+            Some(name) => {
+                cmd.args(&["-I", &format!("@{}", name)]);
+            },
+        }
         let new_arg = format!("{}@{}", dset.name, new_name);
-        cmd.args(&["send", "-nP", "-Le", "-I", &old_arg, &new_arg]);
+        cmd.arg(&new_arg);
         let out = try!(cmd.output());
         if !out.status.success() {
             return Err(format!("zfs send returned error: {:?}", out.status).into());
@@ -504,13 +510,19 @@ impl<'a, 'b, 'c, 'd> CloneState<'a, 'b, 'c, 'd> {
     }
 
     fn run_clone(&self, src: &DataSet, dest: &DataSet,
-                 old_name: &str, new_name: &str, est_size: u64) -> Result<()> {
+                 old_name: Option<&str>, new_name: &str, est_size: u64) -> Result<()> {
         // TODO: A lot is common with `estimate_size`, factor that code
         // out.
         let mut cmd1 = self.src.command();
-        let old_arg = format!("@{}", old_name);
+        cmd1.args(&["send", "-Le"]);
+        match old_name {
+            None => (),
+            Some(name) => {
+                cmd1.args(&["-I", &format!("@{}", name)]);
+            },
+        }
         let new_arg = format!("{}@{}", src.name, new_name);
-        cmd1.args(&["send", "-Le", "-I", &old_arg, &new_arg]);
+        cmd1.arg(&new_arg);
         cmd1.stdout(Stdio::piped());
         let mut child1 = try!(cmd1.spawn());
 
