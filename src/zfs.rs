@@ -23,6 +23,27 @@ use RBack;
 // For pruning, always keep at least this many of the pruned snapshots.
 const PRUNE_KEEP: usize = 10;
 
+// A snap destination is somewhere that has a ZFS filesystem.
+pub trait ZfsPath {
+    /// Retrieve the local path name of this ZfsPath.  With no mount
+    /// options, this will be the same as the directory name, but without a
+    /// leading slash.
+    fn name(&self) -> &str;
+
+    /// Construct a zfs command to access this path.
+    fn command(&self) -> Command;
+}
+
+impl<'a> ZfsPath for &'a str {
+    fn name(&self) -> &str {
+        self
+    }
+
+    fn command(&self) -> Command {
+        Command::new("zfs")
+    }
+}
+
 pub struct ZFS<'a> {
     back: &'a RBack,
     snap_re: Regex,
@@ -40,10 +61,10 @@ impl<'a> ZFS<'a> {
         }
     }
 
-    pub fn get_snaps(&self, dir: &str) -> Result<Vec<DataSet>> {
-        let mut cmd = Command::new("zfs");
+    pub fn get_snaps<Z: ZfsPath>(&self, dir: Z) -> Result<Vec<DataSet>> {
+        let mut cmd = dir.command();
         cmd.args(&["list", "-H", "-t", "all", "-o", "name,mountpoint",
-                 "-r", dir]);
+                 "-r", dir.name()]);
         let out = try!(cmd.output());
         if !out.status.success() {
             return Err(format!("zfs list returned error: {:?}", out.status).into());
@@ -314,23 +335,46 @@ impl<'a> ZFS<'a> {
     }
 
     /// Clone the snapshots in 'src' to 'dest', going through each volume.
-    pub fn clone_snaps(&self, src: &str, dest: &str) -> Result<()> {
-        let src_snaps = try!(self.get_snaps(src));
-        let dest_snaps = try!(self.get_snaps(dest));
+    pub fn clone_snaps<Z1, Z2>(&self, src: Z1, dest: Z2) -> Result<()>
+        where Z1: ZfsPath + Copy, Z2: ZfsPath + Copy
+    {
+        let state = CloneState {
+            zfs: self,
+            src: src,
+            dest: dest,
+        };
+        state.clone_snaps()
+    }
+
+}
+
+struct CloneState<'b, 'a: 'b, Z1, Z2> {
+    src: Z1,
+    dest: Z2,
+    zfs: &'b ZFS<'a>,
+}
+
+impl<'a, 'b, Z1, Z2> CloneState<'a, 'b, Z1, Z2>
+    where Z1: ZfsPath + Copy, Z2: ZfsPath + Copy
+{
+    /// Clone the snapshots in 'src' to 'dest', going through each volume.
+    fn clone_snaps(&self) -> Result<()> {
+        let src_snaps = try!(self.zfs.get_snaps(self.src));
+        let dest_snaps = try!(self.zfs.get_snaps(self.dest));
 
         // println!("src: {:#?}", src_snaps);
         // println!("dst: {:#?}", dest_snaps);
 
         // Build a mapping of the dest volumes, with the shared prefix stripped.
         let dmap: HashMap<_, _> =
-            dest_snaps.iter().map(|e| (e.name[dest.len()..].to_owned(), e))
+            dest_snaps.iter().map(|e| (e.name[self.dest.name().len()..].to_owned(), e))
             .collect();
 
         // println!("dmap: {:#?}", dmap);
 
         for ssnap in &src_snaps {
             // println!("Check: {:?}", &ssnap.name[src.len()..]);
-            match dmap.get(&ssnap.name[src.len()..]) {
+            match dmap.get(&ssnap.name[self.src.name().len()..]) {
                 None => println!("Fresh: {}", ssnap.name),
                 Some(dsnap) => {
                     println!("Clone: {}", ssnap.name);
@@ -381,7 +425,7 @@ impl<'a> ZFS<'a> {
     }
 
     fn estimate_size(&self, dset: &DataSet, old_name: &str, new_name: &str) -> Result<u64> {
-        let mut cmd = Command::new("zfs");
+        let mut cmd = self.src.command();
         let old_arg = format!("@{}", old_name);
         let new_arg = format!("{}@{}", dset.name, new_name);
         cmd.args(&["send", "-nP", "-Le", "-I", &old_arg, &new_arg]);
@@ -393,7 +437,7 @@ impl<'a> ZFS<'a> {
         let buf = try!(String::from_utf8(buf));
         // println!("Output: {} bytes {:?}", buf.len(), buf);
 
-        match self.send_size_re.captures(&buf) {
+        match self.zfs.send_size_re.captures(&buf) {
             None => return Err(format!("zfs send didn't have size data").into()),
             Some(caps) => {
                 Ok(caps.at(1).unwrap().parse::<u64>().unwrap())
@@ -405,12 +449,17 @@ impl<'a> ZFS<'a> {
                  old_name: &str, new_name: &str, est_size: u64) -> Result<()> {
         // TODO: A lot is common with `estimate_size`, factor that code
         // out.
-        let mut cmd1 = Command::new("zfs");
+        let mut cmd1 = self.src.command();
         let old_arg = format!("@{}", old_name);
         let new_arg = format!("{}@{}", src.name, new_name);
         cmd1.args(&["send", "-Le", "-I", &old_arg, &new_arg]);
         cmd1.stdout(Stdio::piped());
         let mut child1 = try!(cmd1.spawn());
+
+        if self.zfs.back.dry_run {
+            println!("ZFS clone: {:?} to {:?}@{:?}", old_name, src.name, new_name);
+            return Ok(())
+        }
 
         // Use the 'pv' program as a progress monitor.
         let mut cmd2 = Command::new("pv");
@@ -425,7 +474,7 @@ impl<'a> ZFS<'a> {
         let mut child2 = try!(cmd2.spawn());
 
         // Pipe this into zfs recv.
-        let mut cmd3 = Command::new("zfs");
+        let mut cmd3 = self.dest.command();
         cmd3.args(&["recv", "-vF", &dest.name]);
         unsafe {
             let fd = child2.stdout.as_ref().unwrap().as_raw_fd();
