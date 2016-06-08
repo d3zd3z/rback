@@ -8,7 +8,7 @@ use std::error;
 use std::path::Path;
 use std::result;
 
-use rback::ZFS;
+use rback::{ZFS, ZfsPath};
 use rback::config::Host;
 
 use rback::RBack;
@@ -104,7 +104,10 @@ fn do_prune(back: &RBack) -> Result<()> {
 fn do_clone(back: &RBack, src: &str, dest: &str) -> Result<()> {
     let zfs = ZFS::new(back);
     println!("src: {}, dest: {}", src, dest);
-    zfs.clone_snaps(&src, &dest)
+
+    let src = ZfsPath::parse(src);
+    let dest = ZfsPath::parse(dest);
+    zfs.clone_snaps(&*src, &*dest)
 }
 
 /*

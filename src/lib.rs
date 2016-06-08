@@ -12,7 +12,7 @@ pub mod config;
 pub mod hostname;
 pub mod zfs;
 
-pub use zfs::ZFS;
+pub use zfs::{ZFS, ZfsPath};
 
 pub struct RBack {
     pub host: config::Host,

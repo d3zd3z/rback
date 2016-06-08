@@ -34,6 +34,17 @@ pub trait ZfsPath {
     fn command(&self) -> Command;
 }
 
+impl ZfsPath {
+    /// Parse the given path, returning a trait object for ZfsPath that is
+    /// either local or remote depending on the user's desire.
+    pub fn parse(text: &str) -> Box<ZfsPath> {
+        match ZfsRemotePath::parse(text) {
+            Some(zp) => Box::new(zp),
+            None => Box::new(ZfsLocalPath(text.to_owned())),
+        }
+    }
+}
+
 /// The implementation for simple strings.  These will run the zfs commands
 /// locally.
 impl<'a> ZfsPath for &'a str {
@@ -43,6 +54,55 @@ impl<'a> ZfsPath for &'a str {
 
     fn command(&self) -> Command {
         Command::new("zfs")
+    }
+}
+
+/// An implementation for local hosts, with an owned string.
+pub struct ZfsLocalPath(String);
+
+impl ZfsPath for ZfsLocalPath {
+    fn name(&self) -> &str {
+        &self.0
+    }
+
+    fn command(&self) -> Command {
+        Command::new("zfs")
+    }
+}
+
+/// A remote path for Zfs.
+pub struct ZfsRemotePath {
+    /// The host (as given to ssh) that this path should be run on.
+    host: String,
+    /// The zfs path name itself.
+    path: String,
+}
+
+impl ZfsRemotePath {
+    // Parse a remote path, based on the first colon.  Returns `None` if
+    // the given text does not have a colon.
+    pub fn parse(text: &str) -> Option<ZfsRemotePath> {
+        let parts: Vec<_> = text.splitn(2, ':').collect();
+        if parts.len() != 2 {
+            return None;
+        }
+
+        Some(ZfsRemotePath {
+            host: parts[0].to_owned(),
+            path: parts[1].to_owned(),
+        })
+    }
+}
+
+impl ZfsPath for ZfsRemotePath {
+    fn name(&self) -> &str {
+        &self.path
+    }
+
+    fn command(&self) -> Command {
+        let mut cmd = Command::new("ssh");
+        cmd.args(&[&self.host[..], "zfs"]);
+        cmd
     }
 }
 
