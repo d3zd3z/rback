@@ -34,6 +34,8 @@ pub trait ZfsPath {
     fn command(&self) -> Command;
 }
 
+/// The implementation for simple strings.  These will run the zfs commands
+/// locally.
 impl<'a> ZfsPath for &'a str {
     fn name(&self) -> &str {
         self
@@ -61,7 +63,7 @@ impl<'a> ZFS<'a> {
         }
     }
 
-    pub fn get_snaps<Z: ZfsPath>(&self, dir: Z) -> Result<Vec<DataSet>> {
+    pub fn get_snaps(&self, dir: &ZfsPath) -> Result<Vec<DataSet>> {
         let mut cmd = dir.command();
         cmd.args(&["list", "-H", "-t", "all", "-o", "name,mountpoint",
                  "-r", dir.name()]);
@@ -95,7 +97,7 @@ impl<'a> ZFS<'a> {
 
     // Get the list of snaps, but eliminate those related to surefiles.
     fn get_nonsure_snaps(&self, dir: &str) -> Result<Vec<DataSet>> {
-        Ok(try!(self.get_snaps(dir))
+        Ok(try!(self.get_snaps(&dir))
            .into_iter()
            .filter(|x| x.name != dir &&
                    !x.name.ends_with("/sure") &&
@@ -124,7 +126,7 @@ impl<'a> ZFS<'a> {
 
     /// Take the next snapshot.
     pub fn take_snapshot(&self) -> Result<()> {
-        let snaps = try!(self.get_snaps(self.base()));
+        let snaps = try!(self.get_snaps(&self.base()));
         let num = self.next_snap(&snaps);
         let today = Local::today();
         let name = format!("{}@{}{:05}-{:02}-{:02}", self.base(),
@@ -280,7 +282,7 @@ impl<'a> ZFS<'a> {
     }
 
     pub fn prune_snaps(&self) -> Result<()> {
-        let snaps = try!(self.get_snaps(self.base()));
+        let snaps = try!(self.get_snaps(&self.base()));
         for ds in &snaps {
             println!("name: {}", ds.name);
             let mut seen = HashMap::new();
@@ -335,9 +337,7 @@ impl<'a> ZFS<'a> {
     }
 
     /// Clone the snapshots in 'src' to 'dest', going through each volume.
-    pub fn clone_snaps<Z1, Z2>(&self, src: Z1, dest: Z2) -> Result<()>
-        where Z1: ZfsPath + Copy, Z2: ZfsPath + Copy
-    {
+    pub fn clone_snaps(&self, src: &ZfsPath, dest: &ZfsPath) -> Result<()> {
         let state = CloneState {
             zfs: self,
             src: src,
@@ -348,15 +348,13 @@ impl<'a> ZFS<'a> {
 
 }
 
-struct CloneState<'b, 'a: 'b, Z1, Z2> {
-    src: Z1,
-    dest: Z2,
+struct CloneState<'b, 'a: 'b, 'c, 'd> {
+    src: &'c ZfsPath,
+    dest: &'d ZfsPath,
     zfs: &'b ZFS<'a>,
 }
 
-impl<'a, 'b, Z1, Z2> CloneState<'a, 'b, Z1, Z2>
-    where Z1: ZfsPath + Copy, Z2: ZfsPath + Copy
-{
+impl<'a, 'b, 'c, 'd> CloneState<'a, 'b, 'c, 'd> {
     /// Clone the snapshots in 'src' to 'dest', going through each volume.
     fn clone_snaps(&self) -> Result<()> {
         let src_snaps = try!(self.zfs.get_snaps(self.src));
@@ -575,7 +573,7 @@ mod test {
             dry_run: false,
         };
         let zfs = ZFS::new(&back);
-        let snaps = zfs.get_snaps("a64/arch").unwrap();
+        let snaps = zfs.get_snaps(&"a64/arch").unwrap();
         println!("next: {}", zfs.next_snap(&snaps));
     }
 }

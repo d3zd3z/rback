@@ -104,7 +104,7 @@ fn do_prune(back: &RBack) -> Result<()> {
 fn do_clone(back: &RBack, src: &str, dest: &str) -> Result<()> {
     let zfs = ZFS::new(back);
     println!("src: {}, dest: {}", src, dest);
-    zfs.clone_snaps(src, dest)
+    zfs.clone_snaps(&src, &dest)
 }
 
 /*
