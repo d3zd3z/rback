@@ -1,20 +1,28 @@
 //! Driver for rback.
 
 #[macro_use] extern crate clap;
+#[macro_use] extern crate error_chain;
 extern crate rback;
 
 use clap::{App, Arg, SubCommand};
-use std::error;
 use std::path::Path;
-use std::result;
 
-use rback::{ZFS, ZfsPath};
+use rback::{zfs, ZFS, ZfsPath};
 use rback::config::Host;
 
 use rback::RBack;
 
-pub type Error = Box<error::Error + Send + Sync>;
-pub type Result<T> = result::Result<T, Error>;
+error_chain! {
+    links {
+        zfs::Error, zfs::ErrorKind, Zfs;
+    }
+
+    foreign_links {
+    }
+
+    errors {
+    }
+}
 
 fn main() {
     let matches = App::new("rback zfs backup management")
@@ -83,22 +91,26 @@ fn main() {
 
 fn do_snap(back: &RBack) -> Result<()> {
     let zfs = ZFS::new(back);
-    zfs.take_snapshot()
+    try!(zfs.take_snapshot());
+    Ok(())
 }
 
 fn do_sure(back: &RBack) -> Result<()> {
     let zfs = ZFS::new(back);
-    zfs.run_sure()
+    try!(zfs.run_sure());
+    Ok(())
 }
 
 fn do_bksure(back: &RBack) -> Result<()> {
     let zfs = ZFS::new(back);
-    zfs.run_bksure()
+    try!(zfs.run_bksure());
+    Ok(())
 }
 
 fn do_prune(back: &RBack) -> Result<()> {
     let zfs = ZFS::new(back);
-    zfs.prune_snaps()
+    try!(zfs.prune_snaps());
+    Ok(())
 }
 
 fn do_clone(back: &RBack, src: &str, dest: &str) -> Result<()> {
@@ -107,7 +119,8 @@ fn do_clone(back: &RBack, src: &str, dest: &str) -> Result<()> {
 
     let src = ZfsPath::parse(src);
     let dest = ZfsPath::parse(dest);
-    zfs.clone_snaps(&*src, &*dest)
+    try!(zfs.clone_snaps(&*src, &*dest));
+    Ok(())
 }
 
 /*

@@ -6,17 +6,30 @@ use rsure::{self, Progress, SureHash, TreeUpdate};
 use rsure::bk::BkDir;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
-use std::error;
 use std::path::Path;
 use std::io::prelude::*;
-use std::io::{BufReader};
+use std::io::{self, BufReader};
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::process::{Command, Stdio};
-use std::result;
+use std::string;
 
-// For dev, boxed errors.
-pub type Error = Box<error::Error + Send + Sync>;
-pub type Result<T> = result::Result<T, Error>;
+error_chain! {
+    types {
+        Error, ErrorKind, ChainErr, Result;
+    }
+
+    links {
+        rsure::Error, rsure::ErrorKind, Rsure;
+    }
+
+    foreign_links {
+        io::Error, IoError, "I/O Error";
+        string::FromUtf8Error, Utf8Error, "UTF8 Error";
+    }
+
+    errors {
+    }
+}
 
 use RBack;
 

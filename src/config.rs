@@ -2,46 +2,36 @@
 
 use hostname;
 use rustc_serialize::Decodable;
-use std::borrow::Cow;
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
-use std::result;
 use toml;
 
-pub type Result<T> = result::Result<T, Error>;
-
 // Error type for parsing.
-error_type! {
-    #[derive(Debug)]
-    pub enum Error {
-        Io(io::Error) {
-            cause;
-        },
-        TomlError(TomlError) {
-            disp(e, fmt) write!(fmt, "{:?}", e);
-            desc(_e) "Toml Parse Error";
-        },
-        Toml(toml::DecodeError) {
-            cause;
-        },
-        Message(Cow<'static, str>) {
-            desc(e) &**e;
-            from(s: &'static str) s.into();
-            from(s: String) s.into();
-        },
-        UnknownHost(UnknownHost) {
-            disp(e, fmt) write!(fmt, "Unknown host: {:?}", e.0);
-            desc(_e) "Unknown host";
+error_chain! {
+    types {
+        Error, ErrorKind, ChainErr, Result;
+    }
+
+    links {
+    }
+
+    foreign_links {
+        io::Error, IoError, "I/O Error";
+        toml::DecodeError, Toml, "Toml Decode Error";
+    }
+
+    errors {
+        TomlError {
+            description("Toml Parse Error")
+            display("Error parsing Toml of config file")
+        }
+        UnknownHost(host: String) {
+            description("Unknown host")
+            display("Unknown host: {:?}", host)
         }
     }
 }
-
-#[derive(Debug)]
-pub struct TomlError;
-
-#[derive(Debug)]
-pub struct UnknownHost(String);
 
 // The top level of the config file are the host entries.  The key isn't really
 // important, and just serves to group the entries together.
@@ -65,7 +55,7 @@ impl Host {
 
         let tml = match toml::Parser::new(&text).parse() {
             Some(stuff) => stuff,
-            None => return Err(Error::TomlError(TomlError)),
+            None => return Err(ErrorKind::TomlError.into()),
         };
 
         let mut result = vec![];
@@ -91,6 +81,6 @@ impl ConfigFile {
                 return Ok(&ent);
             }
         }
-        return Err(Error::UnknownHost(UnknownHost(host)));
+        return Err(ErrorKind::UnknownHost(host).into());
     }
 }

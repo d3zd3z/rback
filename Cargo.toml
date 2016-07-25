@@ -3,6 +3,14 @@
 name = "rback"
 version = "0.0.3"
 authors = ["davidb"]
+descripton = """
+Some backup utilities I use to maintain ZFS snapshots and clones.
+Specific functionality:
+
+* Make automated snapshots, and prune old ones.
+* Use 'rsure' file integrity to record intergrity of snapshots.
+* Automate cloning of zfs snapshots to other pools and other hosts.
+"""
 
 [lib]
 name = "rback"
@@ -10,14 +18,15 @@ name = "rback"
 [dependencies]
 libc = "0.2.11"
 toml = "0.1.30"
-error-type = "0.1.2"
 rustc-serialize = "0.3.19"
 regex = "0.1.71"
 chrono = "0.2.22"
 clap = "2.5.2"
+error-chain = "0.2"
 # log = "0.1"
 
-rsure = { git = "https://github.com/d3zd3z/rsure" }
+# rsure = { git = "https://github.com/d3zd3z/rsure" }
+rsure = "0.4"
 
 [[bin]]
 name = "rback"
