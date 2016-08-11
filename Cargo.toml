@@ -3,7 +3,7 @@
 name = "rback"
 version = "0.0.3"
 authors = ["davidb"]
-descripton = """
+description = """
 Some backup utilities I use to maintain ZFS snapshots and clones.
 Specific functionality:
 
