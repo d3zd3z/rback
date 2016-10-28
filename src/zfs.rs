@@ -23,8 +23,8 @@ error_chain! {
     }
 
     foreign_links {
-        io::Error, IoError, "I/O Error";
-        string::FromUtf8Error, Utf8Error, "UTF8 Error";
+        io::Error, IoError;
+        string::FromUtf8Error, Utf8Error;
     }
 
     errors {

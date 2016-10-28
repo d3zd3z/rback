@@ -17,8 +17,8 @@ error_chain! {
     }
 
     foreign_links {
-        io::Error, IoError, "I/O Error";
-        toml::DecodeError, Toml, "Toml Decode Error";
+        io::Error, IoError;
+        toml::DecodeError, Toml;
     }
 
     errors {

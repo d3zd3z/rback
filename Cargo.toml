@@ -22,7 +22,7 @@ rustc-serialize = "0.3.19"
 regex = "0.1.71"
 chrono = "0.2.22"
 clap = "2.5.2"
-error-chain = "0.2"
+error-chain = "0.5"
 # log = "0.1"
 
 # rsure = { git = "https://github.com/d3zd3z/rsure" }
