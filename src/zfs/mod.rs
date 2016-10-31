@@ -6,6 +6,7 @@ use rsure::{self, Progress, SureHash, TreeUpdate};
 use rsure::bk::BkDir;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
+use std::fmt;
 use std::path::Path;
 use std::io::prelude::*;
 use std::io::{self, BufReader};
@@ -38,7 +39,7 @@ use RBack;
 const PRUNE_KEEP: usize = 10;
 
 // A snap destination is somewhere that has a ZFS filesystem.
-pub trait ZfsPath {
+pub trait ZfsPath: fmt::Debug {
     /// Retrieve the local path name of this ZfsPath.  With no mount
     /// options, this will be the same as the directory name, but without a
     /// leading slash.
@@ -72,6 +73,7 @@ impl<'a> ZfsPath for &'a str {
 }
 
 /// An implementation for local hosts, with an owned string.
+#[derive(Debug)]
 pub struct ZfsLocalPath(String);
 
 impl ZfsPath for ZfsLocalPath {
@@ -85,6 +87,7 @@ impl ZfsPath for ZfsLocalPath {
 }
 
 /// A remote path for Zfs.
+#[derive(Debug)]
 pub struct ZfsRemotePath {
     /// The host (as given to ssh) that this path should be run on.
     host: String,
@@ -604,7 +607,7 @@ struct PruneInfo {
     name: String,
 }
 
-// #[derive(Debug)]
+#[derive(Debug)]
 pub struct DataSet {
     dir: Rc<ZfsPath>,
     name: String,
