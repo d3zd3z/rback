@@ -119,7 +119,7 @@ fn do_clone(back: &RBack, src: &str, dest: &str) -> Result<()> {
 
     let src = ZfsPath::parse(src);
     let dest = ZfsPath::parse(dest);
-    try!(zfs.clone_snaps(&*src, &*dest));
+    try!(zfs.clone_snaps(src, dest));
     Ok(())
 }
 

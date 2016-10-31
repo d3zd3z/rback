@@ -11,6 +11,7 @@ use std::io::prelude::*;
 use std::io::{self, BufReader};
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::process::{Command, Stdio};
+use std::rc::Rc;
 use std::string;
 
 error_chain! {
@@ -50,10 +51,10 @@ pub trait ZfsPath {
 impl ZfsPath {
     /// Parse the given path, returning a trait object for ZfsPath that is
     /// either local or remote depending on the user's desire.
-    pub fn parse(text: &str) -> Box<ZfsPath> {
+    pub fn parse(text: &str) -> Rc<ZfsPath> {
         match ZfsRemotePath::parse(text) {
-            Some(zp) => Box::new(zp),
-            None => Box::new(ZfsLocalPath(text.to_owned())),
+            Some(zp) => Rc::new(zp),
+            None => Rc::new(ZfsLocalPath(text.to_owned())),
         }
     }
 }
@@ -119,6 +120,11 @@ impl ZfsPath for ZfsRemotePath {
     }
 }
 
+// A utility for wrapping up a local path
+fn local_path(dir: &str) -> Rc<ZfsPath> {
+    Rc::new(ZfsLocalPath(dir.to_owned()))
+}
+
 pub struct ZFS<'a> {
     back: &'a RBack,
     snap_re: Regex,
@@ -136,7 +142,7 @@ impl<'a> ZFS<'a> {
         }
     }
 
-    pub fn get_snaps(&self, dir: &ZfsPath) -> Result<Vec<DataSet>> {
+    pub fn get_snaps(&self, dir: Rc<ZfsPath>) -> Result<Vec<DataSet>> {
         let mut cmd = dir.command();
         cmd.args(&["list", "-H", "-t", "all", "-o", "name,mountpoint",
                  "-r", dir.name()]);
@@ -147,7 +153,7 @@ impl<'a> ZFS<'a> {
         let buf = out.stdout;
         // println!("Len: {} bytes", buf.len());
 
-        let mut builder = SnapBuilder::new();
+        let mut builder = SnapBuilder::new(dir);
 
         for line in BufReader::new(&buf[..]).lines() {
             let line = try!(line);
@@ -170,7 +176,7 @@ impl<'a> ZFS<'a> {
 
     // Get the list of snaps, but eliminate those related to surefiles.
     fn get_nonsure_snaps(&self, dir: &str) -> Result<Vec<DataSet>> {
-        Ok(try!(self.get_snaps(&dir))
+        Ok(try!(self.get_snaps(local_path(dir)))
            .into_iter()
            .filter(|x| x.name != dir &&
                    !x.name.ends_with("/sure") &&
@@ -199,7 +205,7 @@ impl<'a> ZFS<'a> {
 
     /// Take the next snapshot.
     pub fn take_snapshot(&self) -> Result<()> {
-        let snaps = try!(self.get_snaps(&self.base()));
+        let snaps = try!(self.get_snaps(local_path(&self.base())));
         let num = self.next_snap(&snaps);
         let today = Local::today();
         let name = format!("{}@{}{:05}-{:02}-{:02}", self.base(),
@@ -355,7 +361,7 @@ impl<'a> ZFS<'a> {
     }
 
     pub fn prune_snaps(&self) -> Result<()> {
-        let snaps = try!(self.get_snaps(&self.base()));
+        let snaps = try!(self.get_snaps(local_path(&self.base())));
         for ds in &snaps {
             println!("name: {}", ds.name);
             let mut seen = HashMap::new();
@@ -410,7 +416,7 @@ impl<'a> ZFS<'a> {
     }
 
     /// Clone the snapshots in 'src' to 'dest', going through each volume.
-    pub fn clone_snaps(&self, src: &ZfsPath, dest: &ZfsPath) -> Result<()> {
+    pub fn clone_snaps(&self, src: Rc<ZfsPath>, dest: Rc<ZfsPath>) -> Result<()> {
         let state = CloneState {
             zfs: self,
             src: src,
@@ -421,17 +427,17 @@ impl<'a> ZFS<'a> {
 
 }
 
-struct CloneState<'b, 'a: 'b, 'c, 'd> {
-    src: &'c ZfsPath,
-    dest: &'d ZfsPath,
+struct CloneState<'b, 'a: 'b> {
+    src: Rc<ZfsPath>,
+    dest: Rc<ZfsPath>,
     zfs: &'b ZFS<'a>,
 }
 
-impl<'a, 'b, 'c, 'd> CloneState<'a, 'b, 'c, 'd> {
+impl<'a, 'b> CloneState<'a, 'b> {
     /// Clone the snapshots in 'src' to 'dest', going through each volume.
     fn clone_snaps(&self) -> Result<()> {
-        let src_snaps = try!(self.zfs.get_snaps(self.src));
-        let dest_snaps = try!(self.zfs.get_snaps(self.dest));
+        let src_snaps = try!(self.zfs.get_snaps(self.src.clone()));
+        let dest_snaps = try!(self.zfs.get_snaps(self.dest.clone()));
 
         // println!("src: {:#?}", src_snaps);
         // println!("dst: {:#?}", dest_snaps);
@@ -598,20 +604,23 @@ struct PruneInfo {
     name: String,
 }
 
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct DataSet {
+    dir: Rc<ZfsPath>,
     name: String,
     snaps: Vec<String>,
     mount: String,
 }
 
 struct SnapBuilder {
+    dir: Rc<ZfsPath>,
     work: Vec<DataSet>,
 }
 
 impl SnapBuilder {
-    fn new() -> SnapBuilder {
+    fn new(dir: Rc<ZfsPath>) -> SnapBuilder {
         SnapBuilder {
+            dir: dir,
             work: vec![],
         }
     }
@@ -622,6 +631,7 @@ impl SnapBuilder {
 
     fn push_volume(&mut self, name: &str, mount: &str) {
         self.work.push(DataSet {
+            dir: self.dir.clone(),
             name: name.to_owned(),
             snaps: vec![],
             mount: mount.to_owned(),
