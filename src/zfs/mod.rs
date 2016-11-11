@@ -151,7 +151,7 @@ impl<'a> ZFS<'a> {
         let mut cmd = dir.command();
         cmd.args(&["list", "-H", "-t", "all", "-o", "name,mountpoint",
                  "-r", dir.name()]);
-        let out = try!(cmd.output());
+        let out = cmd.output()?;
         if !out.status.success() {
             return Err(format!("zfs list returned error: {:?}", out.status).into());
         }
@@ -161,7 +161,7 @@ impl<'a> ZFS<'a> {
         let mut builder = SnapBuilder::new(dir);
 
         for line in BufReader::new(&buf[..]).lines() {
-            let line = try!(line);
+            let line = line?;
             let fields: Vec<_> = line.splitn(2, '\t').collect();
             if fields.len() != 2 {
                 return Err(format!("zfs line doesn't have two fields: {:?}", line).into());
@@ -181,7 +181,7 @@ impl<'a> ZFS<'a> {
 
     // Get the list of snaps, but eliminate those related to surefiles.
     fn get_nonsure_snaps(&self, dir: &str) -> Result<Vec<DataSet>> {
-        Ok(try!(self.get_snaps(local_path(dir)))
+        Ok(self.get_snaps(local_path(dir))?
            .into_iter()
            .filter(|x| x.name != dir &&
                    !x.name.ends_with("/sure") &&
@@ -210,7 +210,7 @@ impl<'a> ZFS<'a> {
 
     /// Take the next snapshot.
     pub fn take_snapshot(&self) -> Result<()> {
-        let snaps = try!(self.get_snaps(local_path(&self.base())));
+        let snaps = self.get_snaps(local_path(&self.base()))?;
         let num = self.next_snap(&snaps);
         let today = Local::today();
         let name = format!("{}@{}{:05}-{:02}-{:02}", self.base(),
@@ -223,7 +223,7 @@ impl<'a> ZFS<'a> {
             println!("Would run: {:?}", cmd);
         } else {
             println!("Run: {:?}", cmd);
-            let stat = try!(cmd.status());
+            let stat = cmd.status()?;
             if !stat.success() {
                 return Err(format!("Unable to run zfs command: {:?}", stat).into());
             }
@@ -235,7 +235,7 @@ impl<'a> ZFS<'a> {
     pub fn run_sure(&self) -> Result<()> {
         let base = self.base();
 
-        let snaps = try!(self.get_nonsure_snaps(base));
+        let snaps = self.get_nonsure_snaps(base)?;
 
         for ds in snaps {
             println!("Run sure on {:?} at {}", ds.name, ds.mount);
@@ -255,11 +255,11 @@ impl<'a> ZFS<'a> {
 
                 // The zfs snapshot automounter is a bit peculiar.  To ensure the directory is
                 // actually mounted, run a command in that directory.
-                try!(self.ensure_dir(&dir));
+                self.ensure_dir(&dir)?;
 
                 match last {
-                    None => try!(self.full_sure(&dir, &name)),
-                    Some(ref old_name) => try!(self.incremental_sure(&dir, old_name, &name)),
+                    None => self.full_sure(&dir, &name)?,
+                    Some(ref old_name) => self.incremental_sure(&dir, old_name, &name)?,
                 }
                 if self.back.dry_run {
                 } else {
@@ -276,9 +276,9 @@ impl<'a> ZFS<'a> {
     /// 'sure' data within a bksure store.
     pub fn run_bksure(&self) -> Result<()> {
         let base = self.base();
-        let snaps = try!(self.get_nonsure_snaps(base));
-        let bkd = try!(BkDir::new(&format!("/{}/bksure", base)));
-        let present = try!(bkd.query());
+        let snaps = self.get_nonsure_snaps(base)?;
+        let bkd = BkDir::new(&format!("/{}/bksure", base))?;
+        let present = bkd.query()?;
         for ds in snaps {
             let mut last = None;
             let subname = &ds.name[base.len()+1..];
@@ -301,9 +301,9 @@ impl<'a> ZFS<'a> {
                 // The zfs snapshot automounter is a bit peculiar.  To
                 // ensure the directory is actually mounted, run a command
                 // in that directory.
-                try!(self.ensure_dir(&dir));
+                self.ensure_dir(&dir)?;
 
-                try!(self.bksure(&bkd, &dir, &datname, last.as_ref().map(|x| x.as_str()), &snap));
+                self.bksure(&bkd, &dir, &datname, last.as_ref().map(|x| x.as_str()), &snap)?;
                 last = Some(snap.clone());
             }
         }
@@ -313,7 +313,7 @@ impl<'a> ZFS<'a> {
     fn ensure_dir(&self, dir: &str) -> Result<()> {
         let mut cmd = Command::new("pwd");
         cmd.current_dir(dir);
-        let stat = try!(cmd.status());
+        let stat = cmd.status()?;
         if !stat.success() {
             return Err(format!("Unable to run pwd command in snapshot dir {:?}", stat).into());
         }
@@ -323,7 +323,7 @@ impl<'a> ZFS<'a> {
     fn full_sure(&self, dir: &str, name: &str) -> Result<()> {
         println!("  % sure -f {} ({})", name, dir);
         if !self.back.dry_run {
-            try!(rsure::update(dir, rsure::no_path(), name));
+            rsure::update(dir, rsure::no_path(), name)?;
         }
         Ok(())
     }
@@ -331,7 +331,7 @@ impl<'a> ZFS<'a> {
     fn incremental_sure(&self, dir: &str, old_name: &str, name: &str) -> Result<()> {
         println!("  % sure --old {} -f {} ({})", old_name, name, dir);
         if !self.back.dry_run {
-            try!(rsure::update(dir, Some(old_name), name));
+            rsure::update(dir, Some(old_name), name)?;
         }
         Ok(())
     }
@@ -340,13 +340,13 @@ impl<'a> ZFS<'a> {
         println!("  % sure file={:?} old={:?}, name={:?} (dir={:?})", file, old, name, dir);
         if !self.back.dry_run {
             // TODO: Generalize this functionality in rsure's API itself.
-            let mut new_tree = try!(rsure::scan_fs(dir));
+            let mut new_tree = rsure::scan_fs(dir)?;
 
             // Update the hashes.
             match old {
                 None => (),
                 Some(src) => {
-                    let old_tree = try!(bkd.load(file, src));
+                    let old_tree = bkd.load(file, src)?;
                     new_tree.update_from(&old_tree);
                 },
             }
@@ -356,7 +356,7 @@ impl<'a> ZFS<'a> {
             new_tree.hash_update(Path::new(dir), &mut progress);
             progress.flush();
 
-            try!(bkd.save(&new_tree, file, name));
+            bkd.save(&new_tree, file, name)?;
         }
         Ok(())
     }
@@ -366,7 +366,7 @@ impl<'a> ZFS<'a> {
     }
 
     pub fn prune_snaps(&self) -> Result<()> {
-        let snaps = try!(self.get_snaps(local_path(&self.base())));
+        let snaps = self.get_snaps(local_path(&self.base()))?;
         for ds in &snaps {
             println!("name: {}", ds.name);
             let mut seen = HashMap::new();
@@ -408,7 +408,7 @@ impl<'a> ZFS<'a> {
                     println!(" % {:?}", cmd);
                     if !self.back.dry_run {
                         // TODO: Factor this always run command.
-                        let stat = try!(cmd.status());
+                        let stat = cmd.status()?;
                         if !stat.success() {
                             return Err(format!("Unable to run zfs command: {:?}", stat).into());
                         }
@@ -441,8 +441,8 @@ struct CloneState<'b, 'a: 'b> {
 impl<'a, 'b> CloneState<'a, 'b> {
     /// Clone the snapshots in 'src' to 'dest', going through each volume.
     fn clone_snaps(&self) -> Result<()> {
-        let src_snaps = try!(self.zfs.get_snaps(self.src.clone()));
-        let dest_snaps = try!(self.zfs.get_snaps(self.dest.clone()));
+        let src_snaps = self.zfs.get_snaps(self.src.clone())?;
+        let dest_snaps = self.zfs.get_snaps(self.dest.clone())?;
 
         // println!("src: {:#?}", src_snaps);
         // println!("dst: {:#?}", dest_snaps);
@@ -461,7 +461,7 @@ impl<'a, 'b> CloneState<'a, 'b> {
                 Some(dsnap) => {
                     println!("Clone: {}", ssnap.name);
 
-                    try!(self.clone_volume(ssnap, dsnap));
+                    self.clone_volume(ssnap, dsnap)?;
                 },
             }
         }
@@ -491,9 +491,9 @@ impl<'a, 'b> CloneState<'a, 'b> {
             } else {
                 let old_name = last.map(|x| &src.snaps[x][..]);
                 println!("  clone {:?} {:?} to {:?} {:?}", src.name, old_name, dest.name, name);
-                let size = try!(self.estimate_size(src, old_name, name));
+                let size = self.estimate_size(src, old_name, name)?;
                 println!("    size: {:?}", size);
-                try!(self.run_clone(src, dest, old_name, name, size));
+                self.run_clone(src, dest, old_name, name, size)?;
             }
 
             last = Some(snum);
@@ -517,12 +517,12 @@ impl<'a, 'b> CloneState<'a, 'b> {
         }
         let new_arg = format!("{}@{}", dset.name, new_name);
         cmd.arg(&new_arg);
-        let out = try!(cmd.output());
+        let out = cmd.output()?;
         if !out.status.success() {
             return Err(format!("zfs send returned error: {:?}", out.status).into());
         }
         let buf = out.stdout;
-        let buf = try!(String::from_utf8(buf));
+        let buf = String::from_utf8(buf)?;
         // println!("Output: {} bytes {:?}", buf.len(), buf);
 
         match self.zfs.send_size_re.captures(&buf) {
@@ -548,7 +548,7 @@ impl<'a, 'b> CloneState<'a, 'b> {
         let new_arg = format!("{}@{}", src.name, new_name);
         cmd1.arg(&new_arg);
         cmd1.stdout(Stdio::piped());
-        let mut child1 = try!(cmd1.spawn());
+        let mut child1 = cmd1.spawn()?;
 
         if self.zfs.back.dry_run {
             println!("ZFS clone: {:?} to {:?}@{:?}", old_name, src.name, new_name);
@@ -565,7 +565,7 @@ impl<'a, 'b> CloneState<'a, 'b> {
         }
         cmd2.stdout(Stdio::piped());
         cmd2.stderr(Stdio::inherit());
-        let mut child2 = try!(cmd2.spawn());
+        let mut child2 = cmd2.spawn()?;
 
         // Pipe this into zfs recv.
         let mut cmd3 = self.dest.command();
@@ -576,23 +576,23 @@ impl<'a, 'b> CloneState<'a, 'b> {
         }
         cmd3.stdout(Stdio::inherit());
         cmd3.stderr(Stdio::inherit());
-        let mut child3 = try!(cmd3.spawn());
+        let mut child3 = cmd3.spawn()?;
 
-        match try!(child1.wait()) {
+        match child1.wait()? {
             status if status.success() => (),
             status => {
                 return Err(format!("Error running zfs send: {:?}", status).into());
             }
         }
 
-        match try!(child2.wait()) {
+        match child2.wait()? {
             status if status.success() => (),
             status => {
                 return Err(format!("Error running pv: {:?}", status).into());
             }
         }
 
-        match try!(child3.wait()) {
+        match child3.wait()? {
             status if status.success() => (),
             status => {
                 return Err(format!("Error running zfs recv: {:?}", status).into());

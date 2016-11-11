@@ -16,7 +16,7 @@ impl<'a> ZFS<'a> {
             |v| format!("{}@{}", ds.name, v));
         println!("get: {:?}", dname);
         cmd.args(&["get", "-Hp", "all", &dname]);
-        let out = try!(cmd.output());
+        let out = cmd.output()?;
         if !out.status.success() {
             return Err(format!("zfs get returned error: {:?}", out.status).into());
         }
@@ -25,7 +25,7 @@ impl<'a> ZFS<'a> {
 
         let buf = out.stdout;
         for line in BufReader::new(&buf[..]).lines() {
-            let line = try!(line);
+            let line = line?;
             let fields: Vec<_> = line.splitn(4, '\t').collect();
             if fields.len() != 4 {
                 return Err(format!("zfs line doesn't have two fields: {:?}", line).into());
@@ -39,16 +39,16 @@ impl<'a> ZFS<'a> {
 
     /// Debugging entry point, show the props for the specified subvolumes.
     pub fn show_props(&self) -> Result<()> {
-        let dss = try!(self.get_snaps(local_path(&self.base())));
+        let dss = self.get_snaps(local_path(&self.base()))?;
         println!("There are {} datasets", dss.len());
         for ds in &dss {
             // Get the parent properties.
             println!("Props for {:?}", ds.name);
-            // let ps = try!(self.get_props(ds, ds.snaps.first().map(|v| v.as_str())));
-            let ps = try!(self.get_props(ds, None));
+            // let ps = self.get_props(ds, ds.snaps.first().map(|v| v.as_str()))?;
+            let ps = self.get_props(ds, None)?;
             println!("  mounted   : {:?}", ps.is_mounted());
             println!("  mountpoint: {:?}", ps.mountpoint());
-            // println!("  {:?}", try!(self.get_props(ds)));
+            // println!("  {:?}", self.get_props(ds)?);
         }
         Ok(())
     }

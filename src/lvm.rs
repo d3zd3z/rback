@@ -37,7 +37,7 @@ impl LvmInfo {
         let mut cmd = sudo.cmd("lvs");
         cmd.args(&["--separator", "|"]);
 
-        let output = try!(cmd.output());
+        let output = cmd.output()?;
         if output.status != process::ExitStatus(0) {
             return Err(Error::Command(output.status));
         }
@@ -56,13 +56,13 @@ impl LvmInfo {
 
         let dec = match lines.next() {
             None => return Err(Error::Message("lvm had no header line".to_string())),
-            Some(hd) => try!(LvmDecoder::new(hd)),
+            Some(hd) => LvmDecoder::new(hd)?,
         };
 
         let mut items = vec!();
 
         for line in lines {
-            items.push(try!(dec.decode(line)));
+            items.push(dec.decode(line)?);
         }
 
         // Sort the items so that the names will present in order.
@@ -87,7 +87,7 @@ impl LvmDecoder {
     fn new(header: &str) -> Result<LvmDecoder, Error> {
         let mut result = BTreeMap::new();
 
-        for (field, i) in try!(LvmDecoder::ltrim(header)).split('|').zip(iter::count(0u, 1)) {
+        for (field, i) in LvmDecoder::ltrim(header)?.split('|').zip(iter::count(0u, 1)) {
             match result.insert(field.to_string(), i) {
                 None => (),
                 Some(i2) => {
@@ -99,14 +99,14 @@ impl LvmDecoder {
         }
 
         Ok(LvmDecoder {
-           lv_pos: try!(LvmDecoder::find_field(&result, "LV")),
-           vg_pos: try!(LvmDecoder::find_field(&result, "VG")),
+           lv_pos: LvmDecoder::find_field(&result, "LV")?,
+           vg_pos: LvmDecoder::find_field(&result, "VG")?,
         })
     }
 
     // Decode a single line.
     fn decode(&self, line: &str) -> Result<LvmEntry, Error> {
-        let line = try!(LvmDecoder::ltrim(line));
+        let line = LvmDecoder::ltrim(line)?;
         let fields: Vec<_> = line.split('|').collect();
         Ok(LvmEntry {
            lv: fields[self.lv_pos].to_string(),

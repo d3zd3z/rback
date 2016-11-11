@@ -94,25 +94,25 @@ fn main() {
 
 fn do_snap(back: &RBack) -> Result<()> {
     let zfs = ZFS::new(back);
-    try!(zfs.take_snapshot());
+    zfs.take_snapshot()?;
     Ok(())
 }
 
 fn do_sure(back: &RBack) -> Result<()> {
     let zfs = ZFS::new(back);
-    try!(zfs.run_sure());
+    zfs.run_sure()?;
     Ok(())
 }
 
 fn do_bksure(back: &RBack) -> Result<()> {
     let zfs = ZFS::new(back);
-    try!(zfs.run_bksure());
+    zfs.run_bksure()?;
     Ok(())
 }
 
 fn do_prune(back: &RBack) -> Result<()> {
     let zfs = ZFS::new(back);
-    try!(zfs.prune_snaps());
+    zfs.prune_snaps()?;
     Ok(())
 }
 
@@ -122,13 +122,13 @@ fn do_clone(back: &RBack, src: &str, dest: &str) -> Result<()> {
 
     let src = ZfsPath::parse(src);
     let dest = ZfsPath::parse(dest);
-    try!(zfs.clone_snaps(src, dest));
+    zfs.clone_snaps(src, dest)?;
     Ok(())
 }
 
 fn do_props(back: &RBack) -> Result<()> {
     let zfs = ZFS::new(back);
-    try!(zfs.show_props());
+    zfs.show_props()?;
     Ok(())
 }
 
