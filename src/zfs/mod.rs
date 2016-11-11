@@ -126,7 +126,7 @@ impl ZfsPath for ZfsRemotePath {
 }
 
 // A utility for wrapping up a local path
-fn local_path(dir: &str) -> Rc<ZfsPath> {
+pub fn local_path(dir: &str) -> Rc<ZfsPath> {
     Rc::new(ZfsLocalPath(dir.to_owned()))
 }
 
@@ -673,7 +673,7 @@ mod test {
             dry_run: false,
         };
         let zfs = ZFS::new(&back);
-        let snaps = zfs.get_snaps(&"a64/arch").unwrap();
+        let snaps = zfs.get_snaps(local_path("a64/arch")).unwrap();
         println!("next: {}", zfs.next_snap(&snaps));
     }
 }
