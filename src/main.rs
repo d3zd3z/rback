@@ -45,6 +45,8 @@ fn main() {
                     .about("Update sure info to bksure store"))
         .subcommand(SubCommand::with_name("prune")
                     .about("Prune old snapshots"))
+        .subcommand(SubCommand::with_name("props")
+                    .about("Debug: show props of volumes"))
         .subcommand(SubCommand::with_name("clone")
                     .about("Clone a set of snapshots")
                     .arg(Arg::with_name("src")
@@ -72,6 +74,7 @@ fn main() {
         Some("sure") => do_sure(&back).unwrap(),
         Some("bksure") => do_bksure(&back).unwrap(),
         Some("prune") => do_prune(&back).unwrap(),
+        Some("props") => do_props(&back).unwrap(),
         Some("clone") => {
             let submatches = matches.subcommand_matches("clone").unwrap();
             let src = submatches.value_of("src").unwrap();
@@ -120,6 +123,12 @@ fn do_clone(back: &RBack, src: &str, dest: &str) -> Result<()> {
     let src = ZfsPath::parse(src);
     let dest = ZfsPath::parse(dest);
     try!(zfs.clone_snaps(src, dest));
+    Ok(())
+}
+
+fn do_props(back: &RBack) -> Result<()> {
+    let zfs = ZFS::new(back);
+    try!(zfs.show_props());
     Ok(())
 }
 

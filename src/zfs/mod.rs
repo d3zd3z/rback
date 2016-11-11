@@ -15,6 +15,8 @@ use std::process::{Command, Stdio};
 use std::rc::Rc;
 use std::string;
 
+mod props;
+
 error_chain! {
     types {
         Error, ErrorKind, ChainErr, Result;
